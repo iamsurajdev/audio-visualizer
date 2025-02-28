@@ -7,7 +7,7 @@ async function getAudioStream() {
     const analyser = audioContext.createAnalyser();
     const source = audioContext.createMediaStreamSource(stream);
     source.connect(analyser);
-    analyser.fftSize = 256;
+    analyser.fftSize = 256; // Higher = more detailed deformation
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -20,33 +20,57 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x111111); // Dark background for contrast
 document.body.appendChild(renderer.domElement);
 
-// 🔥 Create Glowing Torus (Ring)
-const geometry = new THREE.TorusGeometry(3, 0.5, 32, 100);
-const material = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
-const torus = new THREE.Mesh(geometry, material);
-scene.add(torus);
-
-camera.position.z = 10;
-
-// 💡 Lighting
-const light = new THREE.PointLight(0xff00ff, 2, 50);
-light.position.set(0, 5, 5);
+// 💡 Bright Lighting
+const light = new THREE.PointLight(0xffffff, 3); // Strong light intensity
+light.position.set(5, 5, 5);
 scene.add(light);
 
-// 🎵 Animate the Neon Ring with Audio
+const ambientLight = new THREE.AmbientLight(0xffffff, 2); // Soft global lighting
+scene.add(ambientLight);
+
+// 🔥 Create a Colorful, Glowing Sphere
+const geometry = new THREE.SphereGeometry(2, 128, 128); // Higher segments for smooth morphing
+const material = new THREE.MeshStandardMaterial({ 
+    color: 0xff44ff, // Bright pinkish-purple
+    emissive: 0x4400ff, // Glow effect
+    emissiveIntensity: 0.5,
+    metalness: 0.5,
+    roughness: 0.3,
+    wireframe: false // Set to true for a cool wireframe effect
+});
+const sphere = new THREE.Mesh(geometry, material);
+scene.add(sphere);
+
+camera.position.z = 6;
+
+// 🎵 Animate the Sphere Morphing
 async function animate() {
     const { analyser, dataArray, bufferLength } = await getAudioStream();
+    const positions = sphere.geometry.attributes.position.array;
 
     function render() {
         requestAnimationFrame(render);
         analyser.getByteFrequencyData(dataArray);
 
-        const scale = (dataArray[10] / 128.0) * 1.5; // Scale based on bass frequency
-        torus.scale.set(scale, scale, scale);
-        torus.rotation.y += 0.01;
-        torus.material.color.setHSL(scale * 2, 1, 0.5); // Change color dynamically
+        for (let i = 0; i < bufferLength; i++) {
+            const index = i * 3; // Access each vertex
+            const offset = dataArray[i] / 64.0; // More pronounced deformation
+            positions[index] += offset * 0.1 * (Math.random() - 0.5);
+            positions[index + 1] += offset * 0.1 * (Math.random() - 0.5);
+            positions[index + 2] += offset * 0.1 * (Math.random() - 0.5);
+        }
+
+        sphere.geometry.attributes.position.needsUpdate = true;
+        sphere.rotation.y += 0.005;
+        sphere.rotation.x += 0.003;
+
+        // 🌈 Dynamic Color Shift
+        const hue = (performance.now() / 1000) % 1; // Smooth hue cycle
+        sphere.material.color.setHSL(hue, 1, 0.5);
+        sphere.material.emissive.setHSL(hue, 1, 0.8); // Brighter glow
 
         renderer.render(scene, camera);
     }
