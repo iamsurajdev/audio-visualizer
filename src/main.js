@@ -1,72 +1,66 @@
 import * as THREE from "three";
 
-// Get Microphone Audio
+// 🎤 Get Microphone Audio
 async function getAudioStream() {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const audioContext = new AudioContext();
-  const analyser = audioContext.createAnalyser();
-  const source = audioContext.createMediaStreamSource(stream);
-  source.connect(analyser);
-  analyser.fftSize = 128; // Adjust FFT size (higher = more detail)
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+    analyser.fftSize = 512; // Increase for more details
 
-  const bufferLength = analyser.frequencyBinCount;
-  const dataArray = new Uint8Array(bufferLength);
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
 
-  return { analyser, dataArray, bufferLength };
+    return { analyser, dataArray, bufferLength };
 }
 
-// Set up Three.js Scene
+// 🌌 Setup Three.js Scene
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Create Bars for Visualization
-const numBars = 64;
-const bars = [];
-const barWidth = 0.5;
-for (let i = 0; i < numBars; i++) {
-  const geometry = new THREE.BoxGeometry(barWidth, 1, barWidth);
-  const material = new THREE.MeshBasicMaterial({ color: 0x44aa88 });
-  const bar = new THREE.Mesh(geometry, material);
-  bar.position.x = (i - numBars / 2) * (barWidth + 0.1);
-  scene.add(bar);
-  bars.push(bar);
-}
+// 🎨 Create Line Geometry for Waveform
+const lineMaterial = new THREE.LineBasicMaterial({ color: 0x44aa88 });
+const points = new Float32Array(512 * 3);
+const lineGeometry = new THREE.BufferGeometry();
+lineGeometry.setAttribute("position", new THREE.BufferAttribute(points, 3));
+const waveformLine = new THREE.Line(lineGeometry, lineMaterial);
+scene.add(waveformLine);
 
-camera.position.z = 15;
+camera.position.z = 5;
 
-// Animate Audio & Three.js Scene
+// 🎵 Animate the Waveform
 async function animate() {
-  const { analyser, dataArray, bufferLength } = await getAudioStream();
+    const { analyser, dataArray, bufferLength } = await getAudioStream();
 
-  function render() {
-    requestAnimationFrame(render);
-    analyser.getByteFrequencyData(dataArray);
+    function render() {
+        requestAnimationFrame(render);
+        analyser.getByteTimeDomainData(dataArray);
 
-    bars.forEach((bar, i) => {
-      const scale = dataArray[i] / 128.0;
-      bar.scale.y = Math.max(scale, 0.1); // Avoid zero scale
-      bar.material.color.setHSL(scale, 1, 0.5);
-    });
+        const positions = waveformLine.geometry.attributes.position.array;
+        for (let i = 0; i < bufferLength; i++) {
+            const x = (i / bufferLength) * 4 - 2; // Spread across X-axis
+            const y = (dataArray[i] / 128.0 - 1) * 2; // Normalize Y-axis
+            positions[i * 3] = x;
+            positions[i * 3 + 1] = y;
+            positions[i * 3 + 2] = 0;
+        }
 
-    renderer.render(scene, camera);
-  }
+        waveformLine.geometry.attributes.position.needsUpdate = true;
+        renderer.render(scene, camera);
+    }
 
-  render();
+    render();
 }
 
 animate();
 
-// Handle Resize
+// 🌍 Handle Resize
 window.addEventListener("resize", () => {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
 });
