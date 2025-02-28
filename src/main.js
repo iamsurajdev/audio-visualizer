@@ -7,7 +7,7 @@ async function getAudioStream() {
     const analyser = audioContext.createAnalyser();
     const source = audioContext.createMediaStreamSource(stream);
     source.connect(analyser);
-    analyser.fftSize = 512; // Increase for more details
+    analyser.fftSize = 256;
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -22,34 +22,40 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// 🎨 Create Line Geometry for Waveform
-const lineMaterial = new THREE.LineBasicMaterial({ color: 0x44aa88 });
-const points = new Float32Array(512 * 3);
-const lineGeometry = new THREE.BufferGeometry();
-lineGeometry.setAttribute("position", new THREE.BufferAttribute(points, 3));
-const waveformLine = new THREE.Line(lineGeometry, lineMaterial);
-scene.add(waveformLine);
+// 📊 Create 3D Grid Plane
+const gridSize = 32;
+const geometry = new THREE.PlaneGeometry(10, 10, gridSize, gridSize);
+const material = new THREE.MeshStandardMaterial({
+    color: 0x44aa88,
+    wireframe: true,
+});
+const plane = new THREE.Mesh(geometry, material);
+plane.rotation.x = -Math.PI / 2;
+scene.add(plane);
 
-camera.position.z = 5;
+// 💡 Lighting
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5, 10, 5);
+scene.add(light);
 
-// 🎵 Animate the Waveform
+camera.position.set(0, 5, 10);
+camera.lookAt(0, 0, 0);
+
+// 🎵 Animate 3D Waves with Audio
 async function animate() {
     const { analyser, dataArray, bufferLength } = await getAudioStream();
 
     function render() {
         requestAnimationFrame(render);
-        analyser.getByteTimeDomainData(dataArray);
+        analyser.getByteFrequencyData(dataArray);
 
-        const positions = waveformLine.geometry.attributes.position.array;
+        const positions = plane.geometry.attributes.position.array;
         for (let i = 0; i < bufferLength; i++) {
-            const x = (i / bufferLength) * 4 - 2; // Spread across X-axis
-            const y = (dataArray[i] / 128.0 - 1) * 2; // Normalize Y-axis
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = 0;
+            const index = i * 3 + gridSize * 3; // Adjust grid alignment
+            positions[index + 1] = (dataArray[i] / 256) * 2; // Update Y-position
         }
 
-        waveformLine.geometry.attributes.position.needsUpdate = true;
+        plane.geometry.attributes.position.needsUpdate = true;
         renderer.render(scene, camera);
     }
 
