@@ -22,26 +22,20 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// 📊 Create 3D Grid Plane
-const gridSize = 32;
-const geometry = new THREE.PlaneGeometry(10, 10, gridSize, gridSize);
-const material = new THREE.MeshStandardMaterial({
-    color: 0x44aa88,
-    wireframe: true,
-});
-const plane = new THREE.Mesh(geometry, material);
-plane.rotation.x = -Math.PI / 2;
-scene.add(plane);
+// 🔥 Create Glowing Torus (Ring)
+const geometry = new THREE.TorusGeometry(3, 0.5, 32, 100);
+const material = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
+const torus = new THREE.Mesh(geometry, material);
+scene.add(torus);
+
+camera.position.z = 10;
 
 // 💡 Lighting
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(5, 10, 5);
+const light = new THREE.PointLight(0xff00ff, 2, 50);
+light.position.set(0, 5, 5);
 scene.add(light);
 
-camera.position.set(0, 5, 10);
-camera.lookAt(0, 0, 0);
-
-// 🎵 Animate 3D Waves with Audio
+// 🎵 Animate the Neon Ring with Audio
 async function animate() {
     const { analyser, dataArray, bufferLength } = await getAudioStream();
 
@@ -49,13 +43,11 @@ async function animate() {
         requestAnimationFrame(render);
         analyser.getByteFrequencyData(dataArray);
 
-        const positions = plane.geometry.attributes.position.array;
-        for (let i = 0; i < bufferLength; i++) {
-            const index = i * 3 + gridSize * 3; // Adjust grid alignment
-            positions[index + 1] = (dataArray[i] / 256) * 2; // Update Y-position
-        }
+        const scale = (dataArray[10] / 128.0) * 1.5; // Scale based on bass frequency
+        torus.scale.set(scale, scale, scale);
+        torus.rotation.y += 0.01;
+        torus.material.color.setHSL(scale * 2, 1, 0.5); // Change color dynamically
 
-        plane.geometry.attributes.position.needsUpdate = true;
         renderer.render(scene, camera);
     }
 
